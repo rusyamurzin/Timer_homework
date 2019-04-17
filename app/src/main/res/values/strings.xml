@@ -4,4 +4,8 @@
     <string name="reset">reset</string>
     <string name="start">start</string>
     <string name="stop">stop</string>
+    <string name="timer">00:00:000</string>
+    <string name="max_time">60:00:000</string>
+    <string name="small_timer">00:00</string>
+    <string name="small_timer_max">60:00</string>
 </resources>
