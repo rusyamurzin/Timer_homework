@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.util.Log;
@@ -17,36 +18,35 @@ import java.util.Locale;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-import static ru.ok.timer.MainActivity.EXTRA_IS_STARTED;
-import static ru.ok.timer.MainActivity.EXTRA_TIME_LEFT;
+import static ru.ok.timer.MainActivity.END_TIME;
+import static ru.ok.timer.MainActivity.IS_STARTED;
 import static ru.ok.timer.MainActivity.MAX_TIME;
+import static ru.ok.timer.MainActivity.SHARED_PREFERENCE;
+import static ru.ok.timer.MainActivity.TIME_LEFT;
 import static ru.ok.timer.TimerApp.TIMER_TAG;
 
 public class TimerService extends Service {
     private long timeLeft;
     CountDownTimer countDownTimer;
+    private long endTime;
     private boolean isStarted;
-    private Intent mainIntent;
     private BroadcastReceiver receiver;
     private NotificationManager manager;
     private NotificationCompat.Builder notificationBuilder;
     private Context ctx;
     private static final int NOTIFICATION_ID = 1;
+    SharedPreferences sharedPreferences;
     private final RemoteViews remoteViews = new RemoteViews("ru.ok.timer", R.layout.notification);
 
     @Override
-    public void onCreate() {
-        super.onCreate();
-    }
-
-    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        mainIntent = intent;
+        sharedPreferences = getSharedPreferences(SHARED_PREFERENCE, MODE_PRIVATE);
         ctx = getApplicationContext();
-        timeLeft = mainIntent.getLongExtra(EXTRA_TIME_LEFT, MAX_TIME);
-        Log.w("START", "we started on timeleft = "+timeLeft+" and isStarted = "+isStarted);
+        endTime = sharedPreferences.getLong(END_TIME, 0);
+        timeLeft = sharedPreferences.getLong(TIME_LEFT, MAX_TIME);
+        isStarted = sharedPreferences.getBoolean(IS_STARTED, false);
 
-        listener(ctx);
+        setupListeners(ctx);
 
         Intent mainActivityIntent = new Intent(ctx, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(ctx, 0, mainActivityIntent, PendingIntent.FLAG_UPDATE_CURRENT);
@@ -57,14 +57,26 @@ public class TimerService extends Service {
                 .setContentIntent(pendingIntent);
         startForeground(NOTIFICATION_ID, notificationBuilder.build());
         manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        startCountDownTimer();
+        if(isStarted) {
+            timeLeft = endTime - System.currentTimeMillis();
+            if(timeLeft < 0) {
+                timeLeft = 0;
+                isStarted = false;
+                updateSmallTimer(timeLeft);
+                manager.notify(NOTIFICATION_ID, notificationBuilder.build());
+                saveSharePref();
+            }
+            else {
+                startCountDownTimer();
+            }
+        }
 
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        Log.w("onDestroyService", "we destroyed on timeleft = "+timeLeft+" and isStarted = "+isStarted);
+        Log.w("onDestroyService", "we destroyed on timeleft = "+timeLeft+" and isStarted = "+isStarted + " and endTime = " + endTime);
         ctx.unregisterReceiver(receiver);
         countDownTimer.cancel();
         super.onDestroy();
@@ -85,8 +97,8 @@ public class TimerService extends Service {
             @Override
             public void onTick(long millisUntilFinished) {
                 timeLeft = millisUntilFinished;
-                mainIntent.putExtra(EXTRA_IS_STARTED, isStarted);
-                mainIntent.putExtra(EXTRA_TIME_LEFT, timeLeft);
+                endTime = System.currentTimeMillis() + timeLeft;
+                saveSharePref();
                 if (isStarted) {
                     updateSmallTimer(timeLeft);
                     manager.notify(NOTIFICATION_ID, notificationBuilder.build());
@@ -99,9 +111,11 @@ public class TimerService extends Service {
             public void onFinish() {
                 isStarted = false;
                 timeLeft = 0;
+                endTime = System.currentTimeMillis();
                 updateSmallTimer(timeLeft);
                 remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.start));
                 manager.notify(NOTIFICATION_ID, notificationBuilder.build());
+                saveSharePref();
                 stopSelf();
             }
         }.start();
@@ -113,7 +127,15 @@ public class TimerService extends Service {
         remoteViews.setTextViewText(R.id.small_timer, String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds));
     }
 
-    private void listener(Context context) {
+    private void saveSharePref() {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putLong(TIME_LEFT, timeLeft);
+        editor.putLong(END_TIME, endTime);
+        editor.putBoolean(IS_STARTED, isStarted);
+        editor.apply();
+    }
+
+    private void setupListeners(Context context) {
         Intent intentStartStop = new Intent("Start/Stop");
         Intent intentReset = new Intent("Reset");
 
@@ -137,6 +159,7 @@ public class TimerService extends Service {
                             isStarted = false;
                             remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.start));
                             manager.notify(NOTIFICATION_ID, notificationBuilder.build());
+                            saveSharePref();
                         } else {
                             startCountDownTimer();
                             remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.stop));
@@ -151,6 +174,7 @@ public class TimerService extends Service {
                         updateSmallTimer(timeLeft);
                         remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.start));
                         manager.notify(NOTIFICATION_ID, notificationBuilder.build());
+                        saveSharePref();
                     }
                 }
             }

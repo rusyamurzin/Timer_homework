@@ -1,16 +1,11 @@
 package ru.ok.timer;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 
-import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.CountDownTimer;
-import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -28,13 +23,10 @@ public class MainActivity extends AppCompatActivity {
     private boolean isStarted = false;
     private CountDownTimer countDownTimer;
     private Intent timerServiceIntent;
-    private static final String SHARED_PREFERENCE = "TIMER_PREFERENCE";
-    private static final String TIME_LEFT = "TIME_LEFT";
-    private static final String IS_STARTED = "IS_STARTED";
-    private static final String END_TIME = "END_TIME";
-    public static final String EXTRA_TIME_LEFT = "ru.ok.timer.EXTRA_TIME_LEFT";
-    public static final String EXTRA_END_TIME = "ru.ok.timer.EXTRA_END_TIME";
-    public static final String EXTRA_IS_STARTED = "ru.ok.timer.EXTRA_IS_STARTED";
+    public static final String SHARED_PREFERENCE = "TIMER_PREFERENCE";
+    public static final String TIME_LEFT = "TIME_LEFT";
+    public static final String IS_STARTED = "IS_STARTED";
+    public static final String END_TIME = "END_TIME";
 
     @Override
     protected void onStop() {
@@ -49,32 +41,19 @@ public class MainActivity extends AppCompatActivity {
         editor.putBoolean(IS_STARTED, isStarted);
         editor.apply();
         if (isStarted) {
-            timerServiceIntent.putExtra(EXTRA_TIME_LEFT, timeLeft);
             startService(timerServiceIntent);
-            //ContextCompat.startForegroundService(this, timerServiceIntent);
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        if (stopService(timerServiceIntent)) {
-            timeLeft = timerServiceIntent.getLongExtra(EXTRA_TIME_LEFT, MAX_TIME);
-            isStarted = timerServiceIntent.getBooleanExtra(EXTRA_IS_STARTED, false);
-            endTime = System.currentTimeMillis() + timeLeft;
-            Log.w("onStartMainActivity", "we resume on timeleft = "+timeLeft+" and isStarted = "+isStarted);
-        } else {
-            SharedPreferences sharedPreferences = getSharedPreferences(SHARED_PREFERENCE, MODE_PRIVATE);
-            isStarted = sharedPreferences.getBoolean(IS_STARTED, false);
-            endTime = sharedPreferences.getLong(END_TIME, 0);
-            timeLeft = sharedPreferences.getLong(TIME_LEFT, MAX_TIME);
-        }
+        stopService(timerServiceIntent);
+        SharedPreferences sharedPreferences = getSharedPreferences(SHARED_PREFERENCE, MODE_PRIVATE);
+        isStarted = sharedPreferences.getBoolean(IS_STARTED, false);
+        endTime = sharedPreferences.getLong(END_TIME, 0);
+        timeLeft = sharedPreferences.getLong(TIME_LEFT, MAX_TIME);
+        Log.w("onStartMainActivity", "we resumed on timeleft = "+timeLeft+" and isStarted = "+isStarted + " and endTime = "+endTime);
 
         startStopButton.setText(getString(R.string.start));
         if(isStarted) {
@@ -83,7 +62,6 @@ public class MainActivity extends AppCompatActivity {
                 timeLeft = 0;
                 isStarted = false;
                 updateTimerView(timeLeft);
-                startStopButton.setText(getString(R.string.start));
             }
             else {
                 startTimer();
@@ -166,10 +144,5 @@ public class MainActivity extends AppCompatActivity {
         int seconds = (int) (time / 1000) % 60;
         int millis = (int) time % 1000;
         timerTextView.setText(String.format(Locale.getDefault(), "%02d:%02d:%03d", minutes, seconds, millis));
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
     }
 }
