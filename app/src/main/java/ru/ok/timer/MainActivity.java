@@ -66,7 +66,8 @@ public class MainActivity extends AppCompatActivity {
             else {
                 startTimer();
             }
-        } else {
+        }
+        else {
             updateTimerView(timeLeft);
         }
     }
@@ -123,7 +124,12 @@ public class MainActivity extends AppCompatActivity {
             public void onTick(long millisUntilFinished) {
                 if (isStarted) {
                     timeLeft = millisUntilFinished;
-                    updateTimerView(timeLeft);
+                    timerTextView.postOnAnimation(new Runnable() {
+                        @Override
+                        public void run() {
+                            updateTimerView(timeLeft);
+                        }
+                    });
                 } else {
                     countDownTimer.cancel();
                 }

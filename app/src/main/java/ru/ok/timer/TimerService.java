@@ -6,7 +6,6 @@ import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.CountDownTimer;
 import android.os.IBinder;
@@ -29,14 +28,15 @@ public class TimerService extends Service {
     private long timeLeft;
     CountDownTimer countDownTimer;
     private long endTime;
-    private boolean isStarted;
-    private BroadcastReceiver receiver;
+    private boolean isStarted = false;
     private NotificationManager manager;
     private NotificationCompat.Builder notificationBuilder;
     private Context ctx;
-    private static final int NOTIFICATION_ID = 1;
+    public static final int NOTIFICATION_ID = 1;
     SharedPreferences sharedPreferences;
-    private final RemoteViews remoteViews = new RemoteViews("ru.ok.timer", R.layout.notification);
+    public static final String START_STOP_ACTION = "ru.ok.timer.Start/Stop";
+    public static final String RESET_ACTION = "ru.ok.timer.Reset";
+    public static final RemoteViews remoteViews = new RemoteViews("ru.ok.timer", R.layout.notification);
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -57,9 +57,10 @@ public class TimerService extends Service {
                 .setContentIntent(pendingIntent);
         startForeground(NOTIFICATION_ID, notificationBuilder.build());
         manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
         if(isStarted) {
-            timeLeft = endTime - System.currentTimeMillis();
-            if(timeLeft < 0) {
+            long timeToEnd = endTime - System.currentTimeMillis();
+            if(timeToEnd < 0) {
                 timeLeft = 0;
                 isStarted = false;
                 updateSmallTimer(timeLeft);
@@ -77,8 +78,17 @@ public class TimerService extends Service {
     @Override
     public void onDestroy() {
         Log.w("onDestroyService", "we destroyed on timeleft = "+timeLeft+" and isStarted = "+isStarted + " and endTime = " + endTime);
-        ctx.unregisterReceiver(receiver);
-        countDownTimer.cancel();
+        isStarted = sharedPreferences.getBoolean(IS_STARTED, false);
+        if(!isStarted) {
+            timeLeft = sharedPreferences.getLong(TIME_LEFT, MAX_TIME);
+            updateSmallTimer(timeLeft);
+            remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.start));
+            manager.notify(NOTIFICATION_ID, notificationBuilder.build());
+        }
+        if(countDownTimer != null) {
+            countDownTimer.cancel();
+        }
+        saveSharePref();
         super.onDestroy();
     }
 
@@ -136,51 +146,12 @@ public class TimerService extends Service {
     }
 
     private void setupListeners(Context context) {
-        Intent intentStartStop = new Intent("Start/Stop");
-        Intent intentReset = new Intent("Reset");
+        Intent intentStartStop = new Intent(START_STOP_ACTION);
+        Intent intentReset = new Intent(RESET_ACTION);
 
         PendingIntent pendingIntentStartStop = PendingIntent.getBroadcast(context,1, intentStartStop,0);
         PendingIntent pendingIntentReset = PendingIntent.getBroadcast(context,1, intentReset,0);
 
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction("Start/Stop");
-        intentFilter.addAction("Reset");
-
-        receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (action != null) {
-                    if (action.equals("Start/Stop")) {
-                        if (isStarted) {
-                            if (countDownTimer != null) {
-                                countDownTimer.cancel();
-                            }
-                            isStarted = false;
-                            remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.start));
-                            manager.notify(NOTIFICATION_ID, notificationBuilder.build());
-                            saveSharePref();
-                        } else {
-                            startCountDownTimer();
-                            remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.stop));
-                            manager.notify(NOTIFICATION_ID, notificationBuilder.build());
-                        }
-                    } else if (action.equals("Reset")) {
-                        if (countDownTimer != null) {
-                            countDownTimer.cancel();
-                        }
-                        isStarted = false;
-                        timeLeft = MAX_TIME;
-                        updateSmallTimer(timeLeft);
-                        remoteViews.setTextViewText(R.id.small_btn_start_stop, getString(R.string.start));
-                        manager.notify(NOTIFICATION_ID, notificationBuilder.build());
-                        saveSharePref();
-                    }
-                }
-            }
-        };
-
-        context.registerReceiver(receiver,intentFilter);
         remoteViews.setOnClickPendingIntent(R.id.small_btn_start_stop, pendingIntentStartStop);
         remoteViews.setOnClickPendingIntent(R.id.small_btn_reset, pendingIntentReset);
     }

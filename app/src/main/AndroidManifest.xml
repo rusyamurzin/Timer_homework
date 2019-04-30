@@ -28,6 +28,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
+        <receiver android:name=".RemoteViewsActionReceiver">
+            <intent-filter>
+                <action android:name="ru.ok.timer.Start/Stop" />
+                <action android:name="ru.ok.timer.Reset" />
+            </intent-filter>
+        </receiver>
         <service android:name=".TimerService" />
     </application>
 
